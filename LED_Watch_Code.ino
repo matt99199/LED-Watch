@@ -108,6 +108,7 @@ void loop() {
       case 4: //Light level
         break;
       case 5: //Battery level
+        
         break;
       case 6: //Flash light major color
         break;
@@ -119,7 +120,7 @@ void loop() {
         break;
       case 10: //Demo mode
         break;
-      case 11: //
+      case 11: //Rave mode (place holder if nothing else)
         break;
     }
   //Sleep after timeout is reached
@@ -142,6 +143,10 @@ void digitDisplay(int dir, int num, int intn) {
   for (int i, j = 0; i <= (maxDim - intn); i++) pinMode(digitOutputs[1][num], INPUT);
   digitMemory[0] = digitOutputs[0][num];
   digitMemory[1] = digitOutputs[1][num];
+}
+
+void levelDisplay( ) {
+  
 }
 
 void wake() {
