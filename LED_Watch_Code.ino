@@ -1,3 +1,9 @@
+//Matt McCormick
+//8/24/2017
+//LED Watch Code Rev 0.1
+//Notes: Add effects and dimming to level display
+//       Look into changing/adding level/digit effects
+
 #include <Wire.h>
 #include <DS3231.h>
 #include <BH1750.h>
@@ -10,7 +16,7 @@ int lineOutputs2[6] = {3, 9, 10, 11, 5, 6};
 int digitOutputs[2][60];
 int digitMemory[2];
 int intensityDivConst = 5;
-int hour, minute, second, buttonVal, intensity, swDelay, lastMode;
+int hour, minute, second, buttonVal, intensity, swDelay, lastMode, lightLevel, batteryPerc, temperatureLevel;
 int intensityThresh = 2000;
 int maxDim = 200;
 int minDim = 10;
@@ -22,6 +28,8 @@ bool maxDimLatch = false;
 bool swLock = false;
 bool editSettings = false;
 bool dum1, dum2;
+long vcc;
+float temperature;
 
 DS3231 Clock;
 BH1750 lightMeter;
@@ -40,10 +48,14 @@ void setup() {
 }
 
 void loop() {
+  //Check Light Sensor Level
+  if ( maxDimLatch || (intensity > intensityThresh) ) intensity = maxDim;
+  else intensity = map(lightMeter.readLightLevel(), 0, intensityThresh, minDim, maxDim);
   //Check button status
   buttonVal = analogRead(6);
   if ( (buttonVal < 1000)  && !swLock) {
     swLock = !swLock;
+    blankDisplay();
     if ( (buttonVal >= 800) && (buttonVal < 1000) ) mode++;
     else if ( (buttonVal >= 500) && (buttonVal < 800) ) mode--;
     else if ( (buttonVal >= 300) && (buttonVal < 500) ) {
@@ -86,9 +98,6 @@ void loop() {
   }
   else switch (mode % modeCount) {
       case 0: //Watch
-        //Check Light Sensor Level
-        if ( maxDimLatch || (intensity > intensityThresh) ) intensity = maxDim;
-        else intensity = map(lightMeter.readLightLevel(), 0, intensityThresh, minDim, maxDim);
         //Get RTC Information
         hour = (Clock.getHour(dum1, dum2) % 12) * 5;
         minute = Clock.getMinute();
@@ -100,19 +109,35 @@ void loop() {
         digitDisplay(0, second, intensity);
         break;
       case 1: //Thermometer
+        temperature = Clock.getTemperature();
+        if ( temperature >= 0 ) {
+          temperatureLevel = map(temperature, 0, 40, 1, 59);
+          levelDisplay(1, temperatureLevel, intensity);
+        }
+        else {
+          temperatureLevel = map(temperature, -20, -1, 40, 59);
+          levelDisplay(0, temperatureLevel, intensity);
+        }
         break;
       case 2: //Accelerometer
+        //TBD
         break;
       case 3: //Speedometer
+        //TBD
         break;
       case 4: //Light level
+        lightLevel = map(lightMeter.readLightLevel(), 50, 3000, 0, 59);
+        levelDisplay(1, lightLevel, intensity);
         break;
       case 5: //Battery level
-        
+        batteryPerc = map(readVcc(), 2750, 4200, 0, 59);
+        levelDisplay(2, batteryPerc, intensity);
         break;
       case 6: //Flash light major color
+        levelDisplay(1, 59, maxDim);
         break;
       case 7: //Flash light minor color
+        levelDisplay(0, 59, maxDim);
         break;
       case 8: //Hazard indicator
         break;
@@ -133,20 +158,36 @@ void blankDisplay() {
 }
 
 void digitDisplay(int dir, int num, int intn) {
+  if (num % 5 == 0) intn = intn / intensityDivConst;
   if (digitOutputs[0][num] != digitMemory[0]) pinMode(digitMemory[0], INPUT);
   if (digitOutputs[1][num] != digitMemory[1]) pinMode(digitMemory[1], INPUT);
-  if (num % 5 == 0) intn = intn / intensityDivConst;
   pinMode(digitOutputs[0][num], OUTPUT);
   pinMode(digitOutputs[1][num], OUTPUT);
   digitalWrite(digitOutputs[0][num] , dir);
-  for (int i, j = 0; i < intn; i++) digitalWrite(digitOutputs[1][num], !dir);
-  for (int i, j = 0; i <= (maxDim - intn); i++) pinMode(digitOutputs[1][num], INPUT);
+  for (int i = 0; i < intn; i++) digitalWrite(digitOutputs[1][num], !dir);
+  for (int i = 0; i <= (maxDim - intn); i++) pinMode(digitOutputs[1][num], INPUT);
   digitMemory[0] = digitOutputs[0][num];
   digitMemory[1] = digitOutputs[1][num];
 }
 
-void levelDisplay( ) {
-  
+void levelDisplay(int dir, int num, int intn) {
+  if (dir == 2) {
+    //special shit for battery level
+  }
+  for ( int i = 0; i < 5; i++ ) {
+    pinMode(digitOutputs[0][i], OUTPUT);
+    digitalWrite(digitOutputs[0][i], dir);
+  }
+  for ( int i = 0; i < (num % 6); i++ ) {
+    if ( i == num % 6 ) {
+      for ( int i = 1; i < (6 - (num - (i * 6))); i++) {
+        pinMode(digitOutputs[0][num + i], INPUT);
+      }
+    }
+    pinMode(digitOutputs[1][(i * 6) - 6], INPUT);
+    pinMode(digitOutputs[1][i * 6], OUTPUT);
+    digitalWrite(digitOutputs[1][i * 6], !dir);
+  }
 }
 
 void wake() {
@@ -154,13 +195,12 @@ void wake() {
 }
 
 long readVcc() {
-  long result; // Read 1.1V reference against AVcc
   ADMUX = _BV(REFS0) | _BV(MUX3) | _BV(MUX2) | _BV(MUX1);
   delay(1); // Wait for Vref to settle
   ADCSRA |= _BV(ADSC); // Convert
   while (bit_is_set(ADCSRA, ADSC));
-  result = ADCL;
-  result |= ADCH << 8;
-  result = 1126400L / result; // Back-calculate AVcc in mV
-  return result;
+  vcc = ADCL;
+  vcc |= ADCH << 8;
+  vcc = 1126400L / vcc; // Back-calculate AVcc in mV
+  return vcc;
 }
