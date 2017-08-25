@@ -1,0 +1,28 @@
+Time
+Temp
+Accell
+Speed
+Light Level
+Batt Level
+Flash Light Major
+Flash Light Minor
+Date
+Hazard 
+Ring/Demo
+
+
+Set time
+Set date
+Set intensity/dim ratio
+Set maxdim
+Set sleep timeout
+Set tap/double tap/free fall interrupt
+Set major LED divison constant
+
+one button press changes mode by flashing main digit releating to position of guage in menu
+dual button press enters settings (see above after)
+
+future ideas:
+wind speed
+compass
+humidity
